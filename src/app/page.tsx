@@ -1,6 +1,5 @@
-"use client";
-
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +26,8 @@ import {
   Shield,
   Clock,
   Zap,
-  Settings
+  Settings,
+  LogOut
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,6 +67,7 @@ const defaultPredefinedEmails = [
 ];
 
 export default function EmailRoutingManager() {
+  const router = useRouter();
   const [language, setLanguage] = useState<Language>("id");
   const [zones, setZones] = useState<CloudflareZone[]>([]);
   const [selectedZone, setSelectedZone] = useState<string>("");
@@ -80,9 +81,11 @@ export default function EmailRoutingManager() {
   const [darkMode, setDarkMode] = useState(false);
   const [configStatus, setConfigStatus] = useState<"checking" | "configured" | "not-configured">("checking");
   const [predefinedEmails, setPredefinedEmails] = useState<string[]>(defaultPredefinedEmails);
+  const [userInfo, setUserInfo] = useState<any>(null);
 
   // Load zones on mount
   useEffect(() => {
+    loadUserInfo();
     loadZones();
     loadEmailList();
     checkConfig();
@@ -103,6 +106,17 @@ export default function EmailRoutingManager() {
     const configCheckInterval = setInterval(checkConfig, 5000);
     return () => clearInterval(configCheckInterval);
   }, []);
+
+  const loadUserInfo = () => {
+    const savedUserInfo = localStorage.getItem("user_info");
+    if (savedUserInfo) {
+      try {
+        setUserInfo(JSON.parse(savedUserInfo));
+      } catch (error) {
+        console.error("Failed to parse user info:", error);
+      }
+    }
+  };
 
   const checkConfig = async () => {
     try {
@@ -286,6 +300,37 @@ export default function EmailRoutingManager() {
     localStorage.setItem("language", lang);
   };
 
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Clear local storage
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user_info");
+        localStorage.removeItem("remember_me");
+        
+        // Clear cookie
+        document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        
+        toast.success(t("Logout berhasil!", language));
+        router.push("/auth/login");
+      } else {
+        toast.error(data.error || t("Logout gagal", language));
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error(t("Terjadi kesalahan, silakan coba lagi", language));
+    }
+  };
+
   const selectedZoneData = zones.find(z => z.id === selectedZone);
 
   return (
@@ -325,6 +370,14 @@ export default function EmailRoutingManager() {
                 onClick={toggleDarkMode}
               >
                 {darkMode ? "☀️" : "🌙"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLogout}
+                title={t("Logout", language)}
+              >
+                <LogOut className="w-3 sm:w-4 h-3 sm:h-4" />
               </Button>
             </div>
           </div>
